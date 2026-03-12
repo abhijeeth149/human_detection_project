@@ -8,8 +8,8 @@ from ultralytics import YOLO
 from utils import count_people
 
 LABEL_MAP_FILE  = "roll_label_map.json"
-LBPH_THRESHOLD  = 150   # Classroom distance: blurry small faces need higher tolerance
-EIGEN_THRESHOLD = 5000  # EigenFace distances are much larger numbers
+LBPH_THRESHOLD  = 110   # Tightened: rejects ambiguous matches → better precision
+EIGEN_THRESHOLD = 3500  # Tightened: reduce false EigenFace accepts
 
 # DNN face-detector model paths
 DNN_PROTO  = "deploy.prototxt"
@@ -41,11 +41,11 @@ st.set_page_config(
 st.markdown("""
 <style>
     /* Import Premium Space Grotesk Font */
-    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Open+Sauce+One:ital,wght@0,300;0,400;0,600;0,700;0,900;1,400&display=swap');
 
     /* Global Typography & Hide Scrollbars */
     html, body, [class*="css"] {
-        font-family: 'Space Grotesk', sans-serif !important;
+        font-family: 'Open Sauce One', sans-serif !important;
     }
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: #f5f5f5; }
@@ -197,7 +197,7 @@ st.markdown("""
     .stButton > button {
         border-radius: 12px !important;
         font-weight: 700 !important;
-        font-family: 'Space Grotesk', sans-serif !important;
+        font-family: 'Open Sauce One', sans-serif !important;
         letter-spacing: 1px;
         transition: all 0.3s ease !important;
         border: none !important;
@@ -231,7 +231,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------- HEADER ----------------
-st.markdown("<div class='main-header'>🎓 EduVision AI</div>", unsafe_allow_html=True)
+st.markdown("<div class='main-header'>🎓 Vidyaksha</div>", unsafe_allow_html=True)
 st.markdown("<div class='sub-header'>Real-Time Classroom Crowd Analytics & Monitoring</div>", unsafe_allow_html=True)
 
 # ---------------- LOAD MODEL ----------------
@@ -239,7 +239,7 @@ st.markdown("<div class='sub-header'>Real-Time Classroom Crowd Analytics & Monit
 def load_face_recognizer():
     model_path = "classroom_ai/max_accuracy_run/weights/best.pt"
     if not os.path.exists(model_path):
-        model_path = "yolov8x.pt"
+        model_path = "yolov8n.pt"
     yolo_model = YOLO(model_path)
 
     # Load OpenCV Face Recognizer (LBPH)
@@ -430,7 +430,7 @@ def predict_face(gray_crop: np.ndarray):
     other_dists = [d for r,d in all_dists.items() if r != best_roll]
     if other_dists:
         second = min(other_dists)
-        if best_dist / (second + 1e-5) > 0.82:
+        if best_dist / (second + 1e-5) > 0.75:   # tighter ratio test → fewer confused matches
             return None, best_dist
 
     return best_roll, best_dist
@@ -611,6 +611,17 @@ def log_to_csv(mode_name, count, limit):
     with open(LOG_FILE, mode='a', newline='') as file:
         writer = csv.writer(file)
         writer.writerow([timestamp, mode_name, count, status])
+
+    # Log rotation: cap at 10,000 rows to prevent unbounded disk growth
+    try:
+        with open(LOG_FILE, 'r') as f:
+            lines = f.readlines()
+        if len(lines) > 10000:
+            with open(LOG_FILE, 'w') as f:
+                f.writelines(lines[:1])    # keep header
+                f.writelines(lines[-9000:])  # keep latest 9000 rows
+    except Exception:
+        pass
 
 # Initialize CSV on startup
 init_csv()

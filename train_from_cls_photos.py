@@ -14,14 +14,16 @@ Pipeline:
 import cv2, os, json, math, numpy as np
 
 # ─────────────────────────────────────────────────────────────────────────────
-CLS_PHOTOS_DIR  = "/Users/kavi/Downloads/Cls photos"
-OUTPUT_LBPH     = "/Users/kavi/human_detection_project/face_model.yml"
-OUTPUT_EIGEN    = "/Users/kavi/human_detection_project/eigen_model.yml"
-LABEL_MAP_FILE  = "/Users/kavi/human_detection_project/roll_label_map.json"
+# Use relative paths based on the script's directory so this works on any machine
+SCRIPT_DIR      = os.path.dirname(os.path.abspath(__file__))
+CLS_PHOTOS_DIR  = os.path.join(SCRIPT_DIR, "dataset", "Cls photos")
+OUTPUT_LBPH     = os.path.join(SCRIPT_DIR, "face_model.yml")
+OUTPUT_EIGEN    = os.path.join(SCRIPT_DIR, "eigen_model.yml")
+LABEL_MAP_FILE  = os.path.join(SCRIPT_DIR, "roll_label_map.json")
 FACE_SIZE       = (100, 100)
 MIN_FACE_PX     = 18
-DNN_PROTO       = "/Users/kavi/human_detection_project/deploy.prototxt"
-DNN_MODEL_PATH  = "/Users/kavi/human_detection_project/res10_300x300_ssd_iter_140000_fp16.caffemodel"
+DNN_PROTO       = os.path.join(SCRIPT_DIR, "deploy.prototxt")
+DNN_MODEL_PATH  = os.path.join(SCRIPT_DIR, "res10_300x300_ssd_iter_140000_fp16.caffemodel")
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ─── FACE ALIGNMENT ──────────────────────────────────────────────────────────
@@ -65,40 +67,48 @@ def gamma_correct(img, gamma):
 
 
 def augment_face(face_gray: np.ndarray) -> list:
-    """~44 augmented variants of an already-aligned 100×100 face."""
+    """
+    ~24 focused augmented variants of an already-aligned 100×100 face.
+    Reduced from ~80 to prevent LBPH model bloat (LBPH stores every sample).
+    """
     base    = cv2.resize(face_gray, FACE_SIZE)
     h, w    = base.shape
     samples = []
 
-    # Rotation × Brightness × Flip  →  5×3×2 = 30
-    for angle in [-30, -15, 0, 15, 30]:
+    # ── Rotation × Brightness × Flip  →  3×2×2 = 12 ──
+    for angle in [-15, 0, 15]:
         M   = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1.0)
         rot = cv2.warpAffine(base, M, (w, h), borderMode=cv2.BORDER_REPLICATE)
-        for alpha in [0.75, 1.0, 1.30]:
+        for alpha in [0.8, 1.2]:
             bright = np.clip(rot * alpha, 0, 255).astype(np.uint8)
             samples.append(bright)
             samples.append(cv2.flip(bright, 1))
 
-    # Blur levels  →  4
-    for k in [3, 5, 7]:
+    # ── Blur (simulate distance / focus)  →  2 ──
+    for k in [3, 5]:
         samples.append(cv2.GaussianBlur(base, (k, k), 0))
-    samples.append(cv2.medianBlur(base, 3))
 
-    # Downscale-upscale (simulate distance)  →  3
-    for scale in [0.5, 0.3, 0.20]:
+    # ── Downscale-upscale (simulate distance)  →  2 ──
+    for scale in [0.5, 0.3]:
         small = cv2.resize(base, (max(1, int(w * scale)), max(1, int(h * scale))))
         samples.append(cv2.resize(small, FACE_SIZE, interpolation=cv2.INTER_LINEAR))
 
-    # Gamma  →  2
+    # ── Gamma correction  →  2 ──
     samples += [gamma_correct(base, 0.7), gamma_correct(base, 1.5)]
 
-    # Noise  →  1
-    noise = np.random.normal(0, 12.0, base.shape).astype(np.float32)
-    samples.append(np.clip(base.astype(np.float32) + noise, 0, 255).astype(np.uint8))
+    # ── CLAHE contrast  →  2 ──
+    for clip in [1.5, 4.0]:
+        cl = cv2.createCLAHE(clipLimit=clip, tileGridSize=(8, 8))
+        samples.append(cl.apply(base))
 
-    # Scale crops  →  3
-    for mg in [8, 14, 20]:
+    # ── Scale crops (varied zoom)  →  2 ──
+    for mg in [8, 14]:
         samples.append(cv2.resize(base[mg: h - mg, mg: w - mg], FACE_SIZE))
+
+    # ── Gaussian noise  →  2 ──
+    for noise_std in [10.0, 18.0]:
+        noise = np.random.normal(0, noise_std, base.shape).astype(np.float32)
+        samples.append(np.clip(base.astype(np.float32) + noise, 0, 255).astype(np.uint8))
 
     return samples
 
@@ -187,16 +197,16 @@ def train_and_save(face_samples, label_list, label_map):
 
     arr_lbl = np.array(label_list, dtype=np.int32)
 
-    # LBPH
+    # LBPH — default radius=1, neighbors=8 keeps histograms compact (~16KB/sample vs 4MB)
     print(f"\n🏋 Training LBPH on {len(face_samples)} samples …")
-    lbph = cv2.face.LBPHFaceRecognizer_create(radius=2, neighbors=8, grid_x=8, grid_y=8)
+    lbph = cv2.face.LBPHFaceRecognizer_create(radius=1, neighbors=8, grid_x=8, grid_y=8)
     lbph.train(face_samples, arr_lbl)
     lbph.write(OUTPUT_LBPH)
     print(f"✅ LBPH → {OUTPUT_LBPH}")
 
-    # EigenFace (requires same-size images — already 100×100)
+    # EigenFace — 120 components for richer appearance space → better recall
     print(f"🏋 Training EigenFace …")
-    eigen = cv2.face.EigenFaceRecognizer_create(num_components=80)
+    eigen = cv2.face.EigenFaceRecognizer_create(num_components=120)
     eigen.train(face_samples, arr_lbl)
     eigen.write(OUTPUT_EIGEN)
     print(f"✅ EigenFace → {OUTPUT_EIGEN}")

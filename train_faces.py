@@ -2,8 +2,10 @@ import cv2
 import os
 import numpy as np
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 def train_recognizer():
-    data_dir = "/Users/kavi/human_detection_project/student_faces"
+    data_dir = os.path.join(SCRIPT_DIR, "student_faces")
     names = ["Abhijeeth", "Kavishik", "Aryan", "Anand", "Shashank"]
     
     faces = []
@@ -29,7 +31,7 @@ def train_recognizer():
     recognizer.train(faces, np.array(labels))
     
     # Save the model
-    model_path = "/Users/kavi/human_detection_project/face_model.yml"
+    model_path = os.path.join(SCRIPT_DIR, "face_model.yml")
     recognizer.write(model_path)
     print(f"Model saved to {model_path}")
     print("Label Mapping:")
