@@ -1,8 +1,8 @@
-# EduVision AI - Classroom Human Detection System
+# Vidhyaksha - Classroom Human Detection System
 
 ## Project Overview
 
-**EduVision AI** is an advanced computer vision and deep learning system designed for real-time classroom crowd monitoring and student counting. The system leverages state-of-the-art object detection technology to accurately detect, localize, and count human beings in educational environments with high precision and reliability.
+**Vidhyaksha** is an advanced computer vision and deep learning system designed for real-time classroom crowd monitoring and student counting. The system leverages state-of-the-art object detection technology to accurately detect, localize, and count human beings in educational environments with high precision and reliability.
 
 **Application**: Educational institutions can use this system for:
 - Real-time attendance tracking
@@ -843,7 +843,7 @@ Features:
 
 #### 2. **Header Section**
 ```python
-st.markdown("<div class='main-header'>🎓 EduVision AI</div>", 
+st.markdown("<div class='main-header'>🎓 Vidhyaksha AI</div>", 
             unsafe_allow_html=True)
 st.markdown("<div class='sub-header'>Real-Time Classroom Analytics</div>",
             unsafe_allow_html=True)
@@ -1320,7 +1320,7 @@ model.export(format='onnx', int8=True, imgsz=640)
 
 ## Conclusion
 
-**EduVision AI** represents a state-of-the-art solution for classroom monitoring by combining:
+**Vidhyaksha AI** represents a state-of-the-art solution for classroom monitoring by combining:
 
 1. **Advanced DL Architecture**: YOLOv8x with proven real-world performance
 2. **Comprehensive Evaluation**: Multi-metric approach (mAP + MAE)
@@ -1341,4 +1341,4 @@ The system achieves high accuracy (>85% precision, >80% recall) while maintainin
 
 **Project Version**: 2026.1  
 **Last Updated**: February 25, 2026  
-**Maintained By**: EduVision Development Team
+**Maintained By**: Vidhyaksha Development Team
